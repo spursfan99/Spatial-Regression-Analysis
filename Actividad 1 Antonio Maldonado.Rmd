@@ -1,0 +1,495 @@
+---
+title: "Actividad 1"
+author: "Antonio Maldonado Montemayor"
+date: "2023-04-12"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: FALSE
+    toc_float: 
+      smooth_scroll: FALSE
+      collapsed: FALSE  
+---
+<style>
+#TOC {
+  color: #232324;
+  font-family: Arial;
+  font-size: 16px;
+  border-color: #2c2c57;
+}
+body{
+  color: #232324;
+  font-family: Arial;
+  background-color: #f2f2fc;
+}
+pre{
+  color:#232324;
+  background-color:#f2f2fc;
+}
+#header {
+  color: #000000
+  background-color: #f2f2fc;
+  opacity: 0.6;
+  font-family: Arial;
+  font-size: 25px;
+}
+</style>
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(readxl) 
+library(dplyr)
+library(foreign)
+library(ggplot2)
+library(regclass)
+library(mctest)
+library(lmtest)
+library(spdep)
+library(sf)
+library(spData)
+library(mapview)
+library(spatialreg)
+library(naniar)
+library(dlookr)
+library(caret)
+library(e1071)
+library(SparseM)
+library(Metrics)
+library(randomForest)
+library(rpart.plot)
+library(knitr)
+library(insight)
+library(rgeoda)
+library(rgeos)
+library(jtools)
+library(maptools)
+
+library(ggplot2)
+library(sp)
+library(sf)
+library(maps)
+library(spdep)
+library(MASS)
+library(spmoran)
+library(spatialreg)
+library(coda)
+library(sphet)
+library(maptools)
+library(rgeos)
+library(ggmap)
+library(mapproj)
+library(RColorBrewer)
+library(ggsn)
+library(rlang)
+library(tidyverse)
+library(tigris)
+library(leaflet) 
+library(classInt)
+library(rgeoda)
+library(gridExtra)
+library(grid)
+```
+
+# Análisis espacial de datos
+
+ 
+
+El analisis espacial de datos se enfoca en la interpretacion de la informacion analitica que sea impactada de forma geoespacial. Para poder lograr un analisis de este tipo de la mejor forma, se necesita utilizar diversas tecnicas para lograrlo. Estas tecnicas pueden incluir distribuciones o tendencias interrelacionadas con situaciones genericas de los datos.  
+
+*Algunas aplicaciones comunes del análisis espacial de datos incluyen:*
+
+1. *Análisis de patrones espaciales:* Identificación y análisis de patrones y tendencias espaciales en datos geográficos como la concentración de eventos o fenómenos en áreas específicas.
+
+2. *Análisis de proximidad* Evaluación de la distancia o accesibilidad entre diferentes ubicaciones geográficas como la identificación de áreas de servicios cercanas a puntos de interés o la evaluación de la dispersión de ciertos eventos. 
+
+3. *Análisis de interpolación espacial:* Estimación o predicción de valores en ubicaciones no muestreadas en función de los datos disponibles, utilizando técnicas como la kriging o la interpolación de vecinos más cercanos.
+
+4. *Análisis de redes:* Estudio de la conectividad y el flujo a lo largo de una red geográfica, como la optimización de rutas de transporte o la identificación de puntos de acceso críticos.
+
+5. *Análisis de patrones de localización:* Identificación de patrones de localización óptimos para la apertura de nuevos negocios, la ubicación de instalaciones o la asignación de recursos.
+
+6. *Análisis de cambios espaciales:* Detección y análisis de cambios en la distribución espacial de datos a lo largo del tiempo, lo que puede ser útil para el monitoreo ambiental, la planificación urbana o el seguimiento de cambios demográficos.
+
+# Autocorrelación espacial
+
+ 
+Dentro del analisis espacial de datos, existe el concept de Autocrrelacion Espacial. Este termino se enfoca en medir algun tipo de tendencia en cuanto a los datos. La cercania de los datos o su dispersipn es algo de gran enfoque por el cual es determinante si se pueden encontrar patrones o no.  
+
+*Ejemplo:* 
+
+Un ejemplo claro es el indice de covid ubicado en diferentes partes del pais. Se puede observar que si en regiones o estados(dependiendo la segmentacion de distancia seleccionada para el analisis) reciben indices muy similares, entonces se puede asumir que existe autocorrelacion espacial positiva. Sin embargo, si se encuentran indices no similiares entre localizaciones cercanas, entonces se asume que hay autocrrelacion espacial negativa.   
+ 
+```{r}
+ setwd("/Users/Antonio/Desktop/act_1") 
+```
+ 
+ 
+```{r, include=FALSE}
+  setwd ("/Users/Antonio/Desktop/act_1")            
+covid19 <- read.csv("covid19_confirmados.csv") 
+basedenue <- read_xlsx("BASEFINAL.xlsx")         
+```
+
+```{r}
+basedenue_grouped <- basedenue %>%
+  count(cve_ent)
+```
+
+```{r}
+datos <- merge(basedenue_grouped,covid19, by = "cve_ent", all=TRUE)
+```
+
+```{r}
+       
+datosFINAL <- read.csv("datosFINAL.csv")
+```
+
+
+A partir de la base de datos “covid19_confirmados.csv” seleccionar 4-6 variables de interés relacionadas con la situación problema. Brevemente, describir cada una de las variables selecciondas.
+
+1. *porcentaje_pob_pobreza* Porcentaje de la población en pobreza
+2. *dic_2021* Confirmados de covid en diciembre 2021
+3. *porcentaje_pob_acceso_ss* Porcentaje de la población con acceso a servicios de salud
+4. *población_2022* Población por municipio 
+5. *número de hospitales* Numero de hospitales por municipio
+6. *gini2015* Mide el grado de desigualdad en la distribución del ingreso familiar en un país. Cuanto más equitativa sea la distribución del ingreso de un país, menor será su índice de Gini
+
+
+# Estadísticos Descripitvos 
+
+(Global y Regional). Incluir elementos gráficos (histogramas, gráfico de barras, etc.).
+
+```{r, Hospitales por región,fig.cap='Figure 1.1: Se puede visualizar el numero de hospitales por región'}
+ggplot(na.omit(datosFINAL), aes(x=REGION, y=n, fill=REGION)) + 
+  geom_bar(stat="identity") + 
+  scale_fill_brewer(palette = "Set1")
+```
+
+*Hospitales totales:*  
+
+El primer grafico demuestra que las Zonas Centro y Centro Norte tienen el mayor numero de hospitales. Alta poblacion es una de las principales razones por la cual esto sucede y de igual forma por los altos crecimientos de poblacion y migracion por los sectores industriales.    
+
+```{r CONTAGIADOS POR REGION MARZO 2020,fig.cap='Figure 1.2: Se puede visualizar la cantidad de personas contagiadas de covid en marzo de 2020 por región.'}
+ggplot(na.omit(datosFINAL), aes(x=REGION, y=march_2020, fill=REGION)) + 
+  geom_bar(stat="identity") + 
+  scale_fill_brewer(palette = "Set1")
+```
+
+*Contagiados por Región en Marzo 2020:* 
+El grafico de barras demuestra los contagios por region en Marzo 2020. La zona del Centro del pais. La poblacion en esta region es la mas alta y debido a esto se encontraron en la region donde hay mas entiddes de salud. 
+
+```{r CONTAGIADOS POR REGION DICIEMBRE 2021,fig.cap='Figure 1.3: Se puede visualizar la cantidad de personas contagiadas de covid en diciembre de 2021 por región.'}
+ggplot(na.omit(datosFINAL), aes(x=REGION, y=dic_2021, fill=REGION)) + 
+  geom_bar(stat="identity") + 
+  scale_fill_brewer(palette = "Set1")
+```
+
+*Contagiados por Región en Diciembre 2021:* La diferencia entre este grafico y e anterior es que existe una diferencia de un año en base a los datos. Si observamos las regiones, la region mas alta de contagios se mantuvo igual pero en las regiones de Norte y Noreste se vio un incremento minimo.
+
+```{r POBLACIÓN 2022,fig.cap='Figure 1.4: Se puede visualizar la población en 2022 por región.'}
+ggplot(na.omit(datosFINAL), aes(x=REGION, y=poblacion_2022, fill=REGION)) + 
+  geom_bar(stat="identity") + 
+  scale_fill_brewer(palette = "Set1")
+```
+
+*Población por Región:* La grafia de poblacion por region demostro que la region del Centro fue la mas alta y esto esta vinculado con los casos de Covid que resultaron en los años pasados.  
+
+# Estadísticos de Dispersión
+(Global y Regional). Incluir elementos gráficos (box plots, qq-plots, etc.).
+
+```{r}
+datosFINAL$REGION <- as.factor(datosFINAL$REGION)
+datosFINAL$grado_rs <- as.factor(datosFINAL$grado_rs)
+```
+
+```{r GINI/CONTAGIOS,fig.cap='Figure 2.1: Se puede visualizar la relación entre los contagios y el indice de gini.'}
+plot(x = datosFINAL$gini2015, y = datosFINAL$dic_2021, col= datosFINAL$REGION)
+legend(x = "topright", legend = c("CENTRO","NORTE","SUR","CENTRO NORTE"), fill = c("Black", "Red","Blue","Green"), title = "Región")
+```
+
+*Relación entre contagios y el indice:*  
+ 
+ Junto a esta matriz se observa la relacion que existe entre las variables contagios e indice y el analisis demostro que la mayor parte de los datos estan ubicados entre los cuartiles 0.35 y 0.45 
+ 
+
+```{r POBLACIÓN/HOSPITALES,fig.cap='Figure 2.2: Se puede visualizar la relación entre la población y el numero de hospitales'}
+plot(x = datosFINAL$poblacion_2022, y = datosFINAL$n, col= datosFINAL$REGION)
+legend(x = "topright", legend = c("CENTRO","NORTE","SUR","CENTRO NORTE"), fill = c("Black", "Red","Blue","Green"), title = "Región")
+```
+
+*Relación entre Poblacion y Numero de hospitales:* Este grafico de dispersión demuestra la relación entre las variables de Población y Numero de Hospitales. Se puede observar una dispersión en el alsa positiva Objetivamente se puede decir que entre mas alta es la población de una region mas alta seran los números de hospitales. 
+
+```{r POBLACIÓN/CONFIRMADOS COVID,fig.cap='Figure 2.3: Se puede visualizar la relación entre la población y el número de contagios en diciembre del 2021 por región'}
+plot(x = datosFINAL$poblacion_2022, y = datosFINAL$dic_2021, col= datosFINAL$REGION)
+legend(x = "topright", legend = c("CENTRO","NORTE","SUR","CENTRO NORTE"), fill = c("Black", "Red","Blue","Green"), title = "Región")
+```
+
+*Relación entre Poblacion y numero de contagios Diciembre 2021:* La grafica de dispersion demuestra una relación entre la población y el numero de contagios. Al igual que el grafico anterior, existe una dispersion positiva entre el numero de contagios y la poblacion. Sin embargo, en este grafico se pueden ver una dispersión de datos mas significante.
+
+```{r CONFIRMADOS COVID 2020/2021,fig.cap='Figure 2.4: Se puede visualizar la relación entre los casos confirmados de covid en 2020 y 2021'}
+plot(x = datosFINAL$dic_2020, y = datosFINAL$dic_2021, col= datosFINAL$REGION)
+legend(x = "topright", legend = c("CENTRO","NORTE","SUR","CENTRO NORTE"), fill = c("Black", "Red","Blue","Green"), title = "Región")
+```
+
+*Relación de casos de covid 2020 y 2021:* Aqui se puede analizar una comparativa de los casos de covid y comparar las cantidades y su dispersión. Naturalmente, se observa que en el 2020 hubieron mas casos concertados para las respectivas regiones que en el 2021. 
+
+# Map Data Visualization
+
+```{r}
+# lets import shapefile so we can display spatial data 
+map<-readShapePoly("/Users/anavaleriagarciarenteria/Desktop//Actividad 1 Covid/shp_mx_mpios/mx_mpios.shp",IDvar="IDUNICO",proj4string=CRS("+proj=longlat")) ### reads data from a polygon shapefile.
+lmat<-coordinates(map)
+names(lmat)<-c("lon","lat")
+map.centroid<-coordinates(map)  
+summary(map)
+```
+
+```{r}
+map_sf<-read_sf("/Users/anavaleriagarciarenteria/Desktop//Actividad 1 Covid/shp_mx_mpios/mx_mpios.shp")
+```
+
+### **Mostrar mapa con los municipios de Mexico**
+
+```{r}
+plot(map,col="grey",border="blue",axes=TRUE,las=1) + title(main="Municipios de Mexico")
+```
+
+*Municipios de México:* El primer gráfico de mapas demuestra una representación gráfica de los municipios del país. Se puede notar en que la región del Centro es donde existe la concentración más alta de estos.
+
+```{r}
+map_dataa<-geo_join(map,datos,'IDUNICO','cve_ent',how='inner')
+map_datab<-right_join(map_sf,datosFINAL,by="IDUNICO")
+```
+
+# Visualizar la distribución espacial
+
+### **GINI Index a nivel municipal**
+```{r}
+library(tmap)
+tm_shape(map_dataa) +
+  tm_polygons("gini2015", 
+              style="quantile", 
+              title="GINI Index a nivel municipal")
+tmap_mode("view")
+tmap_last()
+```
+
+*Gini Index a nivel Municipal:* El gini index nos ayuda a medir el nivel de desigualdad economico. En este grafico el indice nos da una visualización ideal pero a nivel municipal  para no solo observar el municipio que se esta cuestionando pero tambien los municipios que le rodean.  
+
+### **Densidad de población a nivel municipal**
+```{r}
+tm_shape(map_dataa) +
+  tm_polygons("popden2020", 
+              style="quantile", 
+              title="Densidad de población a nivel miunicipal")
+tmap_mode("view")
+tmap_last()
+```
+
+*Densidad de Población a nivel municipal:* Este gráfico es del mismo estilo que el anterior pero ahora el enfoque está dirigido hacia la densidad de población por región del mapa. Este diferenciador nos permite un ángulo diferente hacia la cuestión de los municipios y su población para sus contagios.
+
+### **Porcentaje de población con acceso a servicios de salud**
+```{r}
+tm_shape(map_dataa) +
+  tm_polygons("porcentaje_pob_acceso_ss", 
+              style="quantile", 
+              title="Porcentaje de población con acceso a servicios de salud")
+tmap_mode("view")
+tmap_last()
+```
+
+*Porcentaje de Población con acceso a servicios de salud:* Este gráfico de mapas demuestra el porcentaje de población que puede acceder a servicios de salud. Con este mapa se puede hacer un análisis para entender si el número de hospitales que existen por región es comparativo a el número de la población que puede acceder a estos servicios.  
+
+### **Porcentaje de población en pobreza**
+```{r}
+tm_shape(map_dataa) +
+  tm_polygons("porcentaje_pob_pobreza", 
+              style="quantile", 
+              title="Porcentaje de población en pobreza")
+tmap_mode("view")
+tmap_last()
+```
+
+*Porcentaje de población en pobreza* Este mapa demuestra el porcentaje de población en pobreza. Con este mapa se puede hacer un análisis para entender si el porcentaje de la población en pobreza tiene relación con los casos confirmados de covid19.
+
+### **Número de hospitales por municipio**
+```{r}
+tm_shape(map_dataa) +
+  tm_polygons("n", 
+              style="quantile", 
+              title="Numero de Hospitales por Municipio")
+tmap_mode("view")
+tmap_last()
+```
+
+*Numero de Hospitales por Municipio:* Este es otro grafico de mapas que se enfoca en el numero de hospitales por municipio. Este analisis complementa los graficos anteriores ya que se puede tener una observación mas especifica del estatus de salud que hay en cada región.
+
+### **COVID19 Casos confirmados a nivel municipal**
+```{r}
+tm_shape(map_dataa) +
+  tm_polygons("dic_2021", 
+              style="quantile", 
+              title="Casos de Covid Confirmados diciembre 2021")
+tmap_mode("view")
+tmap_last()
+```
+
+*Casos Confirmados Diciembre 2021:* En base a el grafico de mapa, en Diciembre del año 2021 la region del Norte tuvo una alza considerablemente mas alta que en resto del pais. Sin embargo, el margen de los datos en cuanto a las categorias es muy alto y enfocar en una sola dirección seria mas complicado.    
+
+# Matriz de Connectividad
+
+### **Spatial Connectivity Matrix (SWM) - Contiguity Case (Queen)**
+```{r}
+map.link<-poly2nb(map,queen=T)              
+map.linkW<-nb2listw(map.link, style="W")     
+plot(map,border="blue",axes=FALSE,las=1)
+plot(map,col="grey",border=grey(0.9),axes=T,add=T) 
+plot(map.linkW,coords=map.centroid,pch=19,cex=0.1,col="blue",add=T)  
+title("Spatial Connectivity Matrix - Contiguity Case (Queen)")
+```
+
+# Identificar Autocorrelación Espacial
+
+###  **Identificando Autocorrelación espacial a nivel global**
+
+```{r}
+map_dataa$gini2015 <- as.numeric(map_dataa$gini2015)
+map_dataa$porcentaje_pob_pobreza <- as.numeric(map_dataa$porcentaje_pob_pobreza)
+map_dataa$porcentaje_pob_acceso_ss <- as.numeric(map_dataa$porcentaje_pob_acceso_ss)
+map_dataa$n <- as.numeric(map_dataa$n)
+map_dataa$popden2020 <- as.numeric(map_dataa$popden2020)
+map_mpios_mx$n <- as.numeric(map_mpios_mx$n)
+
+```
+
+```{r}
+# Detectando autocorrelación espacial Global - gini index (desigualdad de ingreso) 
+moran.mc(map_dataa$gini2015,map.linkW,nsim=9999) # Autocorrelación espacial fuertemente positiva y estadísticamente significativa.
+```
+
+```{r}
+# Detectando autocorrelación espacial Global - Casos confirmados en diciembre 2021
+moran.mc(map_dataa$dic_2021,map.linkW,nsim=9999) # Autocorrelación espacial fuertemente positiva y estadísticamente significativa.
+```
+
+```{r}
+# Detectando autocorrelación espacial Global - Población 2022
+moran.mc(map_dataa$poblacion_2022,map.linkW,nsim=9999) # Autocorrelación espacial fuertemente positiva y estadísticamente significativa.
+```
+
+
+###  **Identificando Autocorrelación espacial a nivel local**
+
+ 
+```{r}
+library(sf)
+library(tmap)
+library(spdep)
+library(rgdal)
+library(tidyverse)
+library(tigris)
+library(mapview)
+library(GWmodel)    
+library(regclass)
+library(viridis)
+library(grid)
+```
+
+
+```{r}
+map_mpios_mx<-st_read("/Users/anavaleriagarciarenteria/Desktop//Actividad 1 Covid/avgr/avgr_shp/mx_mpios_data.shp") 
+```
+
+### modelling spatial negihbors and spatial connectivity matrices
+```{r}
+swm_queen <- poly2nb(map, queen = TRUE)
+summary(swm_queen)
+```
+
+```{r}
+rswm_queen <- nb2listw(swm_queen, style = "W", zero.policy = TRUE)
+rswm_queen
+```
+
+### lets create a spatial lag of dataset's variable 
+```{r}
+map_dataa$sp_gini2015<-lag.listw(rswm_queen,map_dataa$gini2015,zero.policy=TRUE)
+map_dataa$sp_popden2020<-lag.listw(rswm_queen,map_dataa$popden2020,zero.policy=TRUE)
+map_mpios_mx$sp_porcenta_3<-lag.listw(rswm_queen,map_mpios_mx$porcenta_3,zero.policy=TRUE)
+map_mpios_mx$sp_porcentaje<-lag.listw(rswm_queen,map_mpios_mx$porcentaje,zero.policy=TRUE)
+map_dataa$sp_dic_2021<-lag.listw(rswm_queen,map_dataa$dic_2021,zero.policy=TRUE)
+```
+
+
+### GINI 2015
+```{r}
+gini2015 <- qtm(map_dataa,"gini2015")
+spatial_lag_gini2015 <- qtm(map_dataa,"sp_gini2015")
+tmap_arrange(gini2015, spatial_lag_gini2015, asp = 1, ncol =2)
+ #title('Spatial Lagged Variables')
+```
+
+### POP DENSITY
+```{r}
+popden2020 <- qtm(map_dataa,"popden2020")
+spatial_lag_popden2020 <- qtm(map_dataa,"sp_popden2020")
+tmap_arrange(popden2020, spatial_lag_popden2020, asp = 1, ncol =2)
+# title('Spatial Lagged Variables')
+```
+
+
+### COVID DIC 2021
+```{r}
+dic_2021 <- qtm(map_dataa,"dic_2021")
+spatial_lag_dic_2021 <- qtm(map_dataa,"sp_dic_2021")
+tmap_arrange(dic_2021, spatial_lag_dic_2021, asp = 1, ncol =2)
+ #title('Spatial Lagged Variables')
+```
+
+
+*Identificar la posible presencia de clústers locales / regionales para cada una de las variables de interés.*
+
+Los clusters que se analizaron utilizaron 3 variables diferentes de la base de datos. Estas variables fueron escogidas despues de un analisis especifico y quantititativo para el procesamiento del analisis espacial. 
+
+La primera variable fue el indice de GINI 2015. Este indicie mide la desigualdad que existe en los ingresos de las personas en las regiones designadas. A primera instancia el indice demostro los niveles mas bajos de desigualdad a lo largo de la region del norte del pais. Cuando se aplican los clusters en la segunda imagen, podemos observar que las magnitudes de los valores de los indices fueron elevados, particularmente en la region del Noreste y en la region Sur del pais. Este metodo nos permite identificar de la mejor manera y forma las regiones con mayor desigualdad en el pais. En la region Centro la dispersion de los datos era la misma utiliando los clusters.
+
+La segunda variable fue la de Densidad de Poblacion. Esta demuestra la cantidad de personas que existen en los estaods o municipios del pais. De acuerdo con los resultados obtenidos, los dos mapas generaron resultados similiares en cuanto a la densidad de poblacion lo cual atribuye a que generalmente una buena distribucion de la poblacion y el hecho de que ambos mapas representan las regiones de la mejor dorma correctamente. 
+
+La tercera variable fue la de el COVID en el año 2021. El primer mapa demuestra una correlacion positiva en cuanto a la direccion norte del pais y el alza de casos de covid. En otras palabras, entre mas al norte del pais mas casos de COVID se veran presentados. Con el mapa de los Clusters, existen una disminucion en cuanto a la magnitud de los casos. Esto es un resultado natural ya que con las agrupaciones de los CLusters los datos de las Regiones se mezclan y ya no se componen de manera singular.  
+
+
+
+
+*¿Cuáles son algunas de las características socioeconómicas de los municipios que componen los clústers identificados?*
+
+Existen 3 principales caracterisitcas que atribuyen a la composicion de los municipios de los clusters que estan siendo identificados. La primera son los niveles de ingresos. Esta se puede ver reflejada de mejor manera en la variable del indice de GINI. La desigualdad de los igresos tienen un impacto ya que es la norma que las agrupaciones de poblacion esten en base a nivel de ingresos. La segunda variable es educacion. De acuerdo con el analisis es posible vwer e identificar que los niveles de educacion o la educacion de mayor impacto se ubica en las regiones del norete del pais. Y en base a esto podemos inferir cuales municipios y el cruce de las variables tienen impactos positivos las entidadesd e educacion por municipio. La ultima variable es la de ocupacion. Esta caracteristica esta relacionada con la variable de densidad de poblacion en el pais. Las diferentes ocupaciones que existen en el pais requieren una densidad de pobalcion diferente en cuanto a la demanda de personas que es requerida. La mano de obra, gerencia de proyectos entre otras son solo algunos de los ejemplos que permiten tener el estatus completo del analisis. 
+
+# Hallazgos
+
+1. Las Regiones de Centro y Centro Norte tienen el numero mas alto de contagios de Covid debido principalmente a su alto nivel de población a comparación del resto del país.
+
+2. En diciembre 2021 hubieron muchos mas contagios que en diciembre 2020, lo cual se debe a regreso al ritmo de vida antes de la pandemia.
+
+3. De acuerdo con la matrix de conectividad espacial, existe una tendencia de alta conectividad entre los estados del país. Esto indicaría que lo mismo ocurriría a nivel municipal.
+
+4. El índice GPI mostro que en cuanto a Regiones no existe una división sustancial entre estados diferentes. Por ejemplo, en la Region Norte existen estados con municipios de indices altos pero tienen congruencia o sus municipios vecinos tienen indices bajos.
+
+5. En base a la visualización de los datos del grafico de mapa, existe una correlación o tendencia positiva hacia el tamaño de territorio de un municipio del pais y el numero de hospitales que hay en el municipio.
+
+6. De forma contraria, el porcentaje de personas que tiene acceso a servicios medicos no son congruentes con el tamaño del municipio o el tamaño de la poblacion total por municipio. 
+
+
+# Referencias
+
+OpenAI. (2023). Qué es un análisis espacial de datos. ChatGPT, un modelo de lenguaje de OpenAI. Recuperado de https://chat.openai.com/ 
+
+```{r}
+#write.csv(datos,"datosFINAL.csv")
+```
+
+
